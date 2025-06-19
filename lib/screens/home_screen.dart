@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tripmate/screens/profile_screen.dart';
+import 'package:tripmate/services/travelgroups_service.dart';
+import 'package:tripmate/screens/groups_details_screen.dart';
 
 void main() {
   runApp(const TripMateApp());
@@ -90,7 +92,7 @@ class SearchBar extends StatelessWidget {
 class SectionTitle extends StatelessWidget {
   final String title;
 
-  const SectionTitle(this.title);
+  const SectionTitle(this.title, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -101,61 +103,260 @@ class SectionTitle extends StatelessWidget {
   }
 }
 
-class FeaturedGroups extends StatelessWidget {
+class FeaturedGroups extends StatefulWidget {
+  const FeaturedGroups({super.key});
 
-  final List<Map<String, String>> groups = [
-    {
-      "title": "Mountain Explorers",
-      "location": "Swiss Alps",
-      "image":
-      "https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0",
-      "rating": "4.8",
-      "members": "24"
-    },
-    {
-      "title": "Beach Lovers",
-      "location": "Maldives",
-      "image":
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
-      "rating": "4.7",
-      "members": "18"
+  @override
+  State<FeaturedGroups> createState() => _FeaturedGroupsState();
+}
+
+class _FeaturedGroupsState extends State<FeaturedGroups> {
+  final TravelGroupsService _travelGroupsService = TravelGroupsService();
+  List<Map<String, dynamic>> featuredGroups = [];
+  bool isLoading = true;
+
+  // Default images for different destinations
+  final Map<String, String> defaultImages = {
+    'bali': 'https://images.pexels.com/photos/2474690/pexels-photo-2474690.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'paris': 'https://images.pexels.com/photos/161853/paris-france-tower-eiffel-161853.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'italy': 'https://images.pexels.com/photos/208701/pexels-photo-208701.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'swiss': 'https://images.pexels.com/photos/753772/pexels-photo-753772.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'japan': 'https://images.pexels.com/photos/161251/senso-ji-temple-japan-kyoto-landmark-161251.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'thailand': 'https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'mountain': 'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0',
+    'beach': 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
+    'default': 'https://images.pexels.com/photos/1271619/pexels-photo-1271619.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFeaturedGroups();
+  }
+
+  Future<void> _loadFeaturedGroups() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      // Get all travel groups
+      final groups = await _travelGroupsService.getTravelGroups();
+
+      // Process groups to add member counts and images
+      List<Map<String, dynamic>> processedGroups = [];
+
+      for (var group in groups) {
+        // Get member count for each group
+        final memberCount = await _travelGroupsService.getGroupMembersCount(group['group_id']);
+
+        // Add processed data
+        processedGroups.add({
+          ...group,
+          'members': memberCount,
+          'image': _getImageForDestination(group['destination'] ?? ''),
+          'rating': _generateRating(), // Generate a random rating for display
+        });
+      }
+
+      // Sort by least number of members and take first 2
+      processedGroups.sort((a, b) => (a['members'] as int).compareTo(b['members'] as int));
+
+      setState(() {
+        featuredGroups = processedGroups.take(2).toList();
+        isLoading = false;
+      });
+    } catch (error) {
+      setState(() {
+        isLoading = false;
+      });
+      print('Error loading featured groups: $error');
     }
-  ];
+  }
+
+  String _getImageForDestination(String destination) {
+    final lowerDestination = destination.toLowerCase();
+    for (var key in defaultImages.keys) {
+      if (key != 'default' && lowerDestination.contains(key)) {
+        return defaultImages[key]!;
+      }
+    }
+    return defaultImages['default']!;
+  }
+
+  String _generateRating() {
+    // Generate a random rating between 4.0 and 5.0
+    final ratings = ['4.5', '4.6', '4.7', '4.8', '4.9', '5.0'];
+    ratings.shuffle();
+    return ratings.first;
+  }
+
+  void _onGroupTap(Map<String, dynamic> group) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupDetailsScreen(
+          group: group,
+          onJoinGroup: () {
+            // Refresh featured groups when user joins/leaves a group
+            _loadFeaturedGroups();
+          },
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: groups
-          .map((group) => Expanded(
+    if (isLoading) {
+      return SizedBox(
+        height: 200,
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                margin: EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Container(
+                margin: EdgeInsets.only(left: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[200],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Center(
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (featuredGroups.isEmpty) {
+      return SizedBox(
+        height: 200,
         child: Card(
           elevation: 2,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(10)),
-                child: Image.network(group["image"]!, height: 100, width: double.infinity, fit: BoxFit.cover),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(group["title"]!, style: TextStyle(fontWeight: FontWeight.bold)),
-                    Text(group["location"]!, style: TextStyle(color: Colors.grey)),
-                    Row(
-                      children: [
-                        Icon(Icons.star, color: Colors.amber, size: 16),
-                        Text(group["rating"]!)
-                      ],
-                    ),
-                  ],
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.group_outlined, size: 40, color: Colors.grey[400]),
+                SizedBox(height: 8),
+                Text(
+                  'No travel groups found',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
                 ),
-              )
-            ],
+                SizedBox(height: 4),
+                Text(
+                  'Be the first to create one!',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: featuredGroups
+          .map((group) => Expanded(
+        child: GestureDetector(
+          onTap: () => _onGroupTap(group),
+          child: Card(
+            elevation: 2,
+            margin: EdgeInsets.symmetric(horizontal: 4),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(10)),
+                  child: Image.network(
+                    group["image"]!,
+                    height: 100,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 100,
+                        color: Colors.grey[300],
+                        child: Icon(Icons.image, size: 40, color: Colors.grey),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        height: 100,
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group["group_name"] ?? "Unknown Group",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        group["destination"] ?? "Unknown Location",
+                        style: TextStyle(color: Colors.grey),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.star, color: Colors.amber, size: 16),
+                              Text(group["rating"]!)
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              Icon(Icons.people_outline, size: 16, color: Colors.grey[600]),
+                              SizedBox(width: 2),
+                              Text(
+                                '${group["members"]}',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
           ),
         ),
       ))
@@ -192,7 +393,7 @@ class RecommendedForYou extends StatelessWidget {
                 Text("7 days", style: TextStyle(color: Colors.grey)),
                 Row(
                   children: [
-                    Text("\₹1,299", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                    Text("₹1,299", style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
                     Spacer(),
                     Icon(Icons.star, color: Colors.amber, size: 16),
                     Text("4.9")
@@ -234,6 +435,8 @@ class PopularDestinations extends StatelessWidget {
       "image": "https://images.pexels.com/photos/31160557/pexels-photo-31160557/free-photo-of-golden-pavilion-reflected-in-tranquil-pond-kyoto.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2"
     },
   ];
+
+  PopularDestinations({super.key});
 
   @override
   Widget build(BuildContext context) {

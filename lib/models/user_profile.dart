@@ -21,6 +21,7 @@ class UserProfile {
   final String joinDate;
   final String profileImageUrl;
   final List<Trip> pastTrips;
+  final bool isVerified; // New property
 
   UserProfile({
     required this.name,
@@ -29,6 +30,7 @@ class UserProfile {
     required this.joinDate,
     required this.profileImageUrl,
     required this.pastTrips,
+    this.isVerified = false, // Default to false
   });
 }
 

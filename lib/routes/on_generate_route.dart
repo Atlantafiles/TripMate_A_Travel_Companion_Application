@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tripmate/screens/booking_management_screen.dart';
 import 'package:tripmate/screens/home_screen.dart';
 import 'package:tripmate/screens/signup_screen.dart';
 import 'package:tripmate/screens/splash_screen.dart';
@@ -13,6 +14,13 @@ import 'package:tripmate/screens/profile_edit_screen.dart';
 import 'package:tripmate/screens/settings_screen.dart';
 import 'package:tripmate/screens/rating_screen.dart';
 import 'package:tripmate/screens/create_group.dart';
+import 'package:tripmate/screens/agency_signin_screen.dart';
+import 'package:tripmate/screens/agency_signup_screen.dart';
+import 'package:tripmate/screens/agency_dashboard_screen.dart';
+import 'package:tripmate/screens/agency_profile_screen.dart';
+import 'package:tripmate/screens/add_travel_package_screen.dart';
+import 'package:tripmate/screens/agency_booking_details_screen.dart';
+import 'package:tripmate/screens/travel_packages_screen.dart';
 
 class AppRoutes {
   static const String splash = '/';
@@ -29,6 +37,14 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String ratings = '/ratings';
   static const String createGroups = '/create_groups';
+  static const String agencySignIn = '/agency_signin';
+  static const String agencySignUp = '/agency_signup';
+  static const String agencyDashboard = '/agency_dashboard';
+  static const String agencyProfile = '/agency_profile';
+  static const String addtravelpackage = '/addtravelpackage';
+  static const String agencybookingdetails = '/agencybookingdetails';
+  static const String bookingmanagement = '/bookingmanagement';
+  static const String travelpackages = '/travelpackages';
 }
 
 Route<dynamic>? onGenerateRoute(RouteSettings settings) {
@@ -43,7 +59,7 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       return MaterialPageRoute(builder: (_) => const LoginScreen());
 
     case AppRoutes.signup:
-      return MaterialPageRoute(builder: (_) => const SignUpScreen());
+      return MaterialPageRoute(builder: (_) => const SignupScreen());
 
     case AppRoutes.verifyIdentity:
       return MaterialPageRoute(builder: (_) => const VerifyIdentityScreen());
@@ -55,7 +71,25 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
       return MaterialPageRoute(builder: (_) => const MainScreen());
 
     case AppRoutes.viewDetails:
-      return MaterialPageRoute(builder: (_) => PackageDetailsScreen());
+      final arguments = settings.arguments as Map<String, dynamic>?;
+      final packageId = arguments?['packageId'] as String?;
+
+      if (packageId == null) {
+        // Handle error - package ID is required
+        return MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(title: Text('Error')),
+            body: Center(
+              child: Text('Package ID is required'),
+            ),
+          ),
+        );
+      }
+
+      return MaterialPageRoute(
+        builder: (context) => PackageDetailsScreen(packageId: packageId),
+      );
+
 
     case AppRoutes.bookingDetails:
        final package = settings.arguments as Map<String, dynamic>?;
@@ -95,6 +129,36 @@ Route<dynamic>? onGenerateRoute(RouteSettings settings) {
 
     case AppRoutes.createGroups:
       return MaterialPageRoute(builder: (_) => CreateNewGroupScreen());
+
+    case AppRoutes.agencySignIn:
+      return MaterialPageRoute(builder: (_) => AgencySignInScreen());
+
+    case AppRoutes.agencySignUp:
+      return MaterialPageRoute(builder: (_) => AgencySignUpScreen());
+
+    case AppRoutes.agencyDashboard:
+      return MaterialPageRoute(builder: (_) => AgencyDashboardScreen());
+
+    case AppRoutes.agencyProfile:
+      return MaterialPageRoute(builder: (_) => AgencyProfileScreen());
+
+    case AppRoutes.addtravelpackage:
+      final args = settings.arguments as Map<String, dynamic>?;
+
+      return MaterialPageRoute(
+        builder: (_) => AddTravelPackageScreen(
+          existingPackage: args?['existingPackage'] as Map<String, dynamic>?,
+        ),
+      );
+
+    case AppRoutes.travelpackages:
+      return MaterialPageRoute(builder: (_) => TravelPackagesScreen());
+
+    case AppRoutes.agencybookingdetails:
+      return MaterialPageRoute(builder: (_) => AgencyBookingDetailsScreen());
+
+    case AppRoutes.bookingmanagement:
+      return MaterialPageRoute(builder: (_) => BookingManagementScreen());
 
     default:
      return MaterialPageRoute(

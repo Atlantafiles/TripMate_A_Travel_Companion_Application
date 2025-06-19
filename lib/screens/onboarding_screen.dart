@@ -74,6 +74,41 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             color: Colors.black.withValues(alpha: 0.3),
           ),
 
+          // Agency Button (Top Right)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 20,
+            right: 20,
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.pushNamed(context,'/agency_signin');
+                },
+                icon: const Icon(
+                  Icons.business,
+                  color: Colors.white70,
+                  size: 18,
+                ),
+                label: const Text(
+                  "For Agencies",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                style: TextButton.styleFrom(
+                  backgroundColor: Colors.black.withValues(alpha: 0.3),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: const BorderSide(color: Colors.white30, width: 1),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
           // Foreground Content (Fade In)
           FadeTransition(
             opacity: _fadeAnimation,
@@ -171,4 +206,3 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 }
-

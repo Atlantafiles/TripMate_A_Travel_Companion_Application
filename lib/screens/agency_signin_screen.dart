@@ -1,57 +1,99 @@
 import 'package:flutter/material.dart';
-import 'package:tripmate/services/auth_service.dart';
+import 'package:tripmate/services/travel_agency_auth_service.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class AgencySignInScreen extends StatefulWidget {
+  const AgencySignInScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<AgencySignInScreen> createState() => _AgencySignInScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+class _AgencySignInScreenState extends State<AgencySignInScreen> {
   final _formKey = GlobalKey<FormState>();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final _authService = TravelAgencyAuthService();
 
-  bool _obscureText = true;
-  bool _isLoading = false;
-
-  final AuthService _authService = AuthService();
+  bool showPassword = false;
+  bool isLoading = false;
 
   @override
   void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) {
+  Future<void> handleSignIn() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await _authService.signInAgency(
+        email: emailController.text.trim(),
+        password: passwordController.text,
+      );
+
+      if (response.user != null && mounted) {
+        Navigator.pushReplacementNamed(context, '/agency_dashboard');
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Successfully signed in!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Sign in failed: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> handleForgotPassword() async {
+    if (emailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Please enter your email first"),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-
-    setState(() => _isLoading = true);
-
     try {
-      final success = await _authService.signIn(
-        context: context,
-        email: email,
-        password: password,
-      );
-
-      if (success) {
-        // Navigate to home screen after successful login
-        Navigator.pushReplacementNamed(context, '/entry');
+      await _authService.resetPassword(emailController.text.trim());
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Password reset email sent! Check your inbox."),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
-      // Error is already handled in AuthService
-      print('Login error: $e');
-    } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to send reset email: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -80,7 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       // Back Button
                       IconButton(
                         icon: const Icon(Icons.arrow_back),
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => Navigator.pushNamed(context, '/onboarding'),
                         padding: EdgeInsets.zero,
                         alignment: Alignment.centerLeft,
                       ),
@@ -97,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        "Sign in to continue your journey",
+                        "Sign in to your agency account",
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.grey,
@@ -107,7 +149,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // Email Field
                       TextFormField(
-                        controller: _emailController,
+                        controller: emailController,
+                        enabled: !isLoading,
                         decoration: InputDecoration(
                           labelText: "Email",
                           prefixIcon: const Icon(Icons.email_outlined),
@@ -120,7 +163,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter your email';
                           }
-                          if (!_authService.isValidEmail(value.trim())) {
+                          if (!value.contains('@')) {
                             return 'Please enter a valid email address';
                           }
                           return null;
@@ -131,8 +174,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       // Password Field
                       TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscureText,
+                        controller: passwordController,
+                        enabled: !isLoading,
+                        obscureText: !showPassword,
                         decoration: InputDecoration(
                           labelText: "Password",
                           prefixIcon: const Icon(Icons.lock_outline),
@@ -141,13 +185,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           suffixIcon: IconButton(
                             icon: Icon(
-                              _obscureText ? Icons.visibility_off : Icons.visibility,
+                              showPassword ? Icons.visibility : Icons.visibility_off,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscureText = !_obscureText;
-                              });
-                            },
+                            onPressed: () =>
+                                setState(() => showPassword = !showPassword),
                           ),
                         ),
                         validator: (value) {
@@ -163,18 +204,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 15),
 
-                      // Forgot Password Link
+                      // Forgot Password
                       Align(
                         alignment: Alignment.centerRight,
                         child: TextButton(
-                          onPressed: () {
-                            // TODO: Navigate to forgot password screen
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Forgot password feature coming soon!'),
-                              ),
-                            );
-                          },
+                          onPressed: isLoading ? null : handleForgotPassword,
                           child: const Text(
                             "Forgot Password?",
                             style: TextStyle(
@@ -187,11 +221,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
                       const SizedBox(height: 20),
 
-                      // Login Button
+                      // Sign-In Button
                       SizedBox(
                         width: double.infinity,
                         height: 55,
                         child: ElevatedButton(
+                          onPressed: isLoading ? null : handleSignIn,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.blue,
                             shape: RoundedRectangleBorder(
@@ -199,11 +234,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             elevation: 2,
                           ),
-                          onPressed: _isLoading ? null : _handleLogin,
-                          child: _isLoading
-                              ? const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                          child: isLoading
+                              ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
                           )
                               : const Text(
                             "Sign In",
@@ -249,7 +287,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          onPressed: () {
+                          onPressed: isLoading ? null : () {
                             // TODO: Implement Google Sign-in
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -260,7 +298,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              // Use a placeholder or icon since google_logo.png might not exist
                               Icon(
                                 Icons.login,
                                 color: Colors.grey[600],
@@ -295,8 +332,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: () {
-                              Navigator.pushReplacementNamed(context, '/signup');
+                            onPressed: isLoading ? null : () {
+                              // Navigate to agency sign-up screen
+                              Navigator.pushNamed(context, '/agency_signup');
                             },
                             child: const Text(
                               "Sign Up",

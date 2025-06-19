@@ -33,6 +33,7 @@ final UserProfile sampleProfile = UserProfile(
       imageUrl: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34',
     ),
   ],
+  isVerified: true, // Add this property to the user profile
 );
 
 class ProfileScreen extends StatefulWidget {
@@ -72,78 +73,78 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildNormalContainer(BuildContext context) {
     return Scaffold(
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          actions: [
-            PopupMenuButton<String>(
-              onSelected: (value) => _handleMenuSelection(context, value),
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'edit_profile',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit, color: Colors.grey[700]),
-                      SizedBox(width: 10),
-                      Text('Edit Profile'),
-                    ],
-                  ),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) => _handleMenuSelection(context, value),
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: 'edit_profile',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit, color: Colors.grey[700]),
+                    SizedBox(width: 10),
+                    Text('Edit Profile'),
+                  ],
                 ),
-                PopupMenuItem<String>(
-                  value: 'settings',
-                  child: Row(
-                    children: [
-                      Icon(Icons.settings, color: Colors.grey[700]),
-                      SizedBox(width: 10),
-                      Text('Settings'),
-                    ],
-                  ),
+              ),
+              PopupMenuItem<String>(
+                value: 'settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.settings, color: Colors.grey[700]),
+                    SizedBox(width: 10),
+                    Text('Settings'),
+                  ],
                 ),
-                PopupMenuItem<String>(
-                  value: 'privacy_settings',
-                  child: Row(
-                    children: [
-                      Icon(Icons.privacy_tip, color: Colors.grey[700]),
-                      SizedBox(width: 10),
-                      Text('Privacy Settings'),
-                    ],
-                  ),
+              ),
+              PopupMenuItem<String>(
+                value: 'privacy_settings',
+                child: Row(
+                  children: [
+                    Icon(Icons.privacy_tip, color: Colors.grey[700]),
+                    SizedBox(width: 10),
+                    Text('Privacy Settings'),
+                  ],
                 ),
-                PopupMenuDivider(),
-                PopupMenuItem<String>(
-                  value: 'help',
-                  child: Row(
-                    children: [
-                      Icon(Icons.help_outline, color: Colors.grey[700]),
-                      SizedBox(width: 10),
-                      Text('Help & Support'),
-                    ],
-                  ),
+              ),
+              PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: 'help',
+                child: Row(
+                  children: [
+                    Icon(Icons.help_outline, color: Colors.grey[700]),
+                    SizedBox(width: 10),
+                    Text('Help & Support'),
+                  ],
                 ),
-                PopupMenuItem<String>(
-                  value: 'about',
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.grey[700]),
-                      SizedBox(width: 10),
-                      Text('About'),
-                    ],
-                  ),
+              ),
+              PopupMenuItem<String>(
+                value: 'about',
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.grey[700]),
+                    SizedBox(width: 10),
+                    Text('About'),
+                  ],
                 ),
-                PopupMenuItem<String>(
-                  value: 'sos',
-                  child: Row(
-                    children: [
-                      Icon(Icons.emergency_outlined, color: Colors.grey[700]),
-                      SizedBox(width: 10),
-                      Text('Emergency'),
-                    ],
-                  ),
+              ),
+              PopupMenuItem<String>(
+                value: 'sos',
+                child: Row(
+                  children: [
+                    Icon(Icons.emergency_outlined, color: Colors.grey[700]),
+                    SizedBox(width: 10),
+                    Text('Emergency'),
+                  ],
                 ),
-              ],
-              icon: Icon(Icons.more_vert),
-            ),
-          ],
-        ),
+              ),
+            ],
+            icon: Icon(Icons.more_vert),
+          ),
+        ],
+      ),
       body: _buildProfileContent(context, isWideScreen: false),
     );
   }
@@ -182,8 +183,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => EmergencySosScreen(),
-        ),
-      );
+          ),
+        );
     }
   }
 
@@ -299,13 +300,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
         SizedBox(height: 16),
-        Text(
-          widget.userProfile.name,
-          style: TextStyle(
-            fontSize: isWideScreen ? 28 : 24,
-            fontWeight: FontWeight.bold,
-          ),
+
+        // Added Row to display name with verification badge
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              widget.userProfile.name,
+              style: TextStyle(
+                fontSize: isWideScreen ? 28 : 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(width: 8),
+            // Verification badge
+            if (sampleProfile.isVerified) // Assuming userProfile has this property
+              Container(
+                padding: EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: isWideScreen ? 20 : 18,
+                ),
+              ),
+          ],
         ),
+
         Text(
           widget.userProfile.bio,
           style: TextStyle(
@@ -466,4 +491,3 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
-

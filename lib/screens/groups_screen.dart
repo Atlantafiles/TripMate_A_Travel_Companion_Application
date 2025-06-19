@@ -1,43 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:tripmate/services/travelgroups_service.dart';
+import 'package:tripmate/screens/groups_details_screen.dart';
 
-class JoinGroupsScreen extends StatelessWidget {
-  JoinGroupsScreen({super.key});
+class JoinGroupsScreen extends StatefulWidget {
+  const JoinGroupsScreen({super.key});
 
-  // List of travel groups
-  final List<Map<String, dynamic>> travelGroups = [
-    {
-      'name': 'Mountain Explorers',
-      'location': 'Swiss Alps',
-      'dates': 'Aug 15-22',
-      'members': 6,
-      'status': 'Open',
-      'image': 'https://images.pexels.com/photos/753772/pexels-photo-753772.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
-    },
-    {
-      'name': 'Beach Paradise',
-      'location': 'Bali',
-      'dates': 'Sep 10-17',
-      'members': 4,
-      'status': 'Open',
-      'image': 'assets/images/beach.jpg',
-    },
-    {
-      'name': 'City Wanderers',
-      'location': 'Paris',
-      'dates': 'Oct 1-7',
-      'members': 8,
-      'status': 'Open',
-      'image': 'assets/images/paris.jpg',
-    },
-    {
-      'name': 'Venice Adventure',
-      'location': 'Italy',
-      'dates': 'Sep 20-27',
-      'members': 5,
-      'status': 'Open',
-      'image': 'https://images.pexels.com/photos/208701/pexels-photo-208701.jpeg',
-    },
-  ];
+  @override
+  State<JoinGroupsScreen> createState() => _JoinGroupsScreenState();
+}
+
+class _JoinGroupsScreenState extends State<JoinGroupsScreen> {
+  final TravelGroupsService _travelGroupsService = TravelGroupsService();
+  final TextEditingController _searchController = TextEditingController();
+
+  List<Map<String, dynamic>> travelGroups = [];
+  List<Map<String, dynamic>> filteredGroups = [];
+  bool isLoading = true;
+  String selectedFilter = 'All Groups';
+  String searchQuery = '';
 
   // List of filter categories
   final List<String> filterCategories = [
@@ -46,6 +26,179 @@ class JoinGroupsScreen extends StatelessWidget {
     'This Month',
     'Budget',
   ];
+
+  // Default images for different destinations
+  final Map<String, String> defaultImages = {
+    'bali': 'https://images.pexels.com/photos/2474690/pexels-photo-2474690.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'paris': 'https://images.pexels.com/photos/161853/paris-france-tower-eiffel-161853.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'italy': 'https://images.pexels.com/photos/208701/pexels-photo-208701.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'swiss': 'https://images.pexels.com/photos/753772/pexels-photo-753772.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'japan': 'https://images.pexels.com/photos/161251/senso-ji-temple-japan-kyoto-landmark-161251.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'thailand': 'https://images.pexels.com/photos/1371360/pexels-photo-1371360.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+    'default': 'https://images.pexels.com/photos/1271619/pexels-photo-1271619.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTravelGroups();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      searchQuery = _searchController.text;
+    });
+    _applyFilters();
+  }
+
+  Future<void> _loadTravelGroups() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      final groups = await _travelGroupsService.getTravelGroups();
+
+      // Process groups to add member counts and images
+      List<Map<String, dynamic>> processedGroups = [];
+
+      for (var group in groups) {
+        // Get member count
+        final memberCount = await _travelGroupsService.getGroupMembersCount(group['group_id']);
+
+        // Check if current user is already a member
+        final isCurrentUserMember = await _travelGroupsService.isUserMemberOfGroup(group['group_id']);
+
+        // Add processed data
+        processedGroups.add({
+          ...group,
+          'members': memberCount,
+          'image': _getImageForDestination(group['destination'] ?? ''),
+          'dates': _formatDates(group['start_date'], group['end_date']),
+          'isCurrentUserMember': isCurrentUserMember,
+        });
+      }
+
+      setState(() {
+        travelGroups = processedGroups;
+        filteredGroups = processedGroups;
+        isLoading = false;
+      });
+    } catch (error) {
+      setState(() {
+        isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading groups: $error'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _applyFilters() {
+    List<Map<String, dynamic>> filtered = travelGroups;
+
+    // Apply search filter
+    if (searchQuery.isNotEmpty) {
+      filtered = filtered.where((group) {
+        final groupName = (group['group_name'] ?? '').toLowerCase();
+        final destination = (group['destination'] ?? '').toLowerCase();
+        final tags = (group['tags'] ?? '').toLowerCase();
+        final query = searchQuery.toLowerCase();
+
+        return groupName.contains(query) ||
+            destination.contains(query) ||
+            tags.contains(query);
+      }).toList();
+    }
+
+    // Apply category filter
+    switch (selectedFilter) {
+      case 'This Month':
+        final now = DateTime.now();
+        final thisMonth = DateTime(now.year, now.month);
+        final nextMonth = DateTime(now.year, now.month + 1);
+
+        filtered = filtered.where((group) {
+          try {
+            final startDate = DateTime.parse(group['start_date']);
+            return startDate.isAfter(thisMonth) && startDate.isBefore(nextMonth);
+          } catch (e) {
+            return false;
+          }
+        }).toList();
+        break;
+
+      case 'Budget':
+      // Filter groups with budget under $1000
+        filtered = filtered.where((group) {
+          final maxBudget = group['budget_range_max'];
+          return maxBudget != null && maxBudget <= 1000;
+        }).toList();
+        break;
+
+      case 'Nearby':
+      // TODO: Implement location-based filtering
+      // For now, this is a placeholder
+        break;
+
+      case 'All Groups':
+      default:
+      // No additional filtering needed
+        break;
+    }
+
+    setState(() {
+      filteredGroups = filtered;
+    });
+  }
+
+  String _getImageForDestination(String destination) {
+    final lowerDestination = destination.toLowerCase();
+    for (var key in defaultImages.keys) {
+      if (key != 'default' && lowerDestination.contains(key)) {
+        return defaultImages[key]!;
+      }
+    }
+    return defaultImages['default']!;
+  }
+
+  String _formatDates(String? startDate, String? endDate) {
+    if (startDate == null || endDate == null) return 'TBD';
+
+    try {
+      final start = DateTime.parse(startDate);
+      final end = DateTime.parse(endDate);
+
+      return '${_formatDate(start)} - ${_formatDate(end)}';
+    } catch (e) {
+      return 'TBD';
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${months[date.month - 1]} ${date.day}';
+  }
+
+  // This callback will be called when a user joins/leaves a group from the details screen
+  void _onGroupActionCompleted() {
+    // Refresh the groups list to update member counts and membership status
+    _loadTravelGroups();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,13 +214,29 @@ class JoinGroupsScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
-                  const Text(
-                    'Join Groups',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
+                  // Title with refresh button
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Join Groups',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: isLoading ? null : _loadTravelGroups,
+                        icon: isLoading
+                            ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                            : const Icon(Icons.refresh),
+                        color: Colors.blue,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   // Search bar
@@ -83,6 +252,7 @@ class JoinGroupsScreen extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
+                            controller: _searchController,
                             decoration: InputDecoration(
                               hintText: 'Search travel groups',
                               hintStyle: TextStyle(color: Colors.grey[500]),
@@ -91,6 +261,13 @@ class JoinGroupsScreen extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (_searchController.text.isNotEmpty)
+                          IconButton(
+                            icon: Icon(Icons.clear, color: Colors.grey[600]),
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                          ),
                         Icon(Icons.tune, color: Colors.grey[600]),
                       ],
                     ),
@@ -107,14 +284,19 @@ class JoinGroupsScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: filterCategories.length,
                 itemBuilder: (context, index) {
-                  bool isSelected = index == 0; // First item is selected by default
+                  bool isSelected = filterCategories[index] == selectedFilter;
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: FilterChip(
                       selected: isSelected,
                       label: Text(filterCategories[index]),
                       onSelected: (selected) {
-                        // Handle filter selection
+                        if (selected) {
+                          setState(() {
+                            selectedFilter = filterCategories[index];
+                          });
+                          _applyFilters();
+                        }
                       },
                       backgroundColor: Colors.white,
                       selectedColor: Colors.blue,
@@ -134,63 +316,114 @@ class JoinGroupsScreen extends StatelessWidget {
 
             const SizedBox(height: 8),
 
+            // Results count
+            if (!isLoading && searchQuery.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Found ${filteredGroups.length} groups',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+
             // Travel group grid
             Expanded(
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.85,
-                ),
-                itemCount: travelGroups.length,
-                itemBuilder: (context, index) {
-                  final group = travelGroups[index];
-                  return GestureDetector(
-                    onTap: () {
-                      // Navigate to group details screen when a card is tapped
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => GroupDetailsScreen(group: group),
-                        ),
-                      );
-                    },
-                    child: TravelGroupCard(
-                      name: group['name'],
-                      location: group['location'],
-                      dates: group['dates'],
-                      members: group['members'],
-                      status: group['status'],
-                      imagePath: group['image'],
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : filteredGroups.isEmpty
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.group_outlined,
+                      size: 64,
+                      color: Colors.grey[400],
                     ),
-                  );
-                },
+                    const SizedBox(height: 16),
+                    Text(
+                      searchQuery.isNotEmpty
+                          ? 'No groups found for "$searchQuery"'
+                          : 'No travel groups found',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.grey[600],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      searchQuery.isNotEmpty
+                          ? 'Try adjusting your search terms'
+                          : 'Be the first to create one!',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+                  : RefreshIndicator(
+                onRefresh: _loadTravelGroups,
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.85,
+                  ),
+                  itemCount: filteredGroups.length,
+                  itemBuilder: (context, index) {
+                    final group = filteredGroups[index];
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => GroupDetailsScreen(
+                              group: group,
+                              onJoinGroup: _onGroupActionCompleted, // Now properly passes the callback
+                            ),
+                          ),
+                        );
+                      },
+                      child: TravelGroupCard(
+                        name: group['group_name'] ?? 'Unknown Group',
+                        location: group['destination'] ?? 'Unknown',
+                        dates: group['dates'] ?? 'TBD',
+                        members: group['members'] ?? 0,
+                        status: group['status'] ?? 'Open',
+                        imagePath: group['image'],
+                        isCurrentUserMember: group['isCurrentUserMember'] ?? false,
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],
         ),
       ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16, right: 16),
-            child: FloatingActionButton.extended(
-              onPressed: () {
-                // Action for creating a group
-                Navigator.pushNamed(context, '/create_groups');
-              },
-              backgroundColor: Colors.blue,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text(
-                "Create a group",
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-          ),
-        ],
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          // Navigate to create group screen and refresh when returning
+          final result = await Navigator.pushNamed(context, '/create_groups');
+          if (result == true) {
+            // Refresh the groups list if a group was created
+            _loadTravelGroups();
+          }
+        },
+        backgroundColor: Colors.blue,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          "Create a group",
+          style: TextStyle(color: Colors.white),
+        ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
@@ -204,6 +437,7 @@ class TravelGroupCard extends StatelessWidget {
   final int members;
   final String status;
   final String imagePath;
+  final bool isCurrentUserMember;
 
   const TravelGroupCard({
     super.key,
@@ -213,6 +447,7 @@ class TravelGroupCard extends StatelessWidget {
     required this.members,
     required this.status,
     required this.imagePath,
+    this.isCurrentUserMember = false,
   });
 
   @override
@@ -232,23 +467,56 @@ class TravelGroupCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-            child: AspectRatio(
-              aspectRatio: 1.5,
-              child: Image.asset(
-                imagePath,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  // Fallback for missing images
-                  return Container(
-                    color: Colors.grey[300],
-                    child: const Icon(Icons.image, size: 40, color: Colors.grey),
-                  );
-                },
+          // Image with member badge
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: AspectRatio(
+                  aspectRatio: 1.5,
+                  child: Image.network(
+                    imagePath,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey[300],
+                        child: const Icon(Icons.image, size: 40, color: Colors.grey),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
+              // Member badge
+              if (isCurrentUserMember)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Joined',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
 
           // Group details
@@ -304,13 +572,13 @@ class TravelGroupCard extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.green[50],
+                        color: status == 'Open' ? Colors.green[50] : Colors.orange[50],
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         status,
                         style: TextStyle(
-                          color: Colors.green[600],
+                          color: status == 'Open' ? Colors.green[600] : Colors.orange[600],
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -327,190 +595,3 @@ class TravelGroupCard extends StatelessWidget {
   }
 }
 
-// New GroupDetailsScreen class for displaying the details of a selected group
-class GroupDetailsScreen extends StatelessWidget {
-  final Map<String, dynamic> group;
-
-  const GroupDetailsScreen({super.key, required this.group});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(group['name']),
-        backgroundColor: Colors.white,
-        elevation: 1,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Group image
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: Image.asset(
-                group['image'],
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(Icons.image, size: 64, color: Colors.grey),
-                    ),
-                  );
-                },
-              ),
-            ),
-
-            // Group info
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Group name and status
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          group['name'],
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          group['status'],
-                          style: TextStyle(
-                            color: Colors.green[600],
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Location
-                  Row(
-                    children: [
-                      Icon(Icons.location_on_outlined, size: 20, color: Colors.grey[700]),
-                      const SizedBox(width: 8),
-                      Text(
-                        group['location'],
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // Dates
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today_outlined, size: 20, color: Colors.grey[700]),
-                      const SizedBox(width: 8),
-                      Text(
-                        group['dates'],
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 4),
-
-                  // Members
-                  Row(
-                    children: [
-                      Icon(Icons.people_outline, size: 20, color: Colors.grey[700]),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${group['members']} members',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Description
-                  const Text(
-                    'About this trip',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Join this amazing trip to ${group['location']}! Experience the beauty and culture of this destination with a friendly group of travelers. The trip includes accommodations, guided tours, and plenty of free time to explore on your own.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey[800],
-                      height: 1.5,
-                    ),
-                  ),
-
-                  const SizedBox(height: 32),
-
-                  // Join button
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        // Handle join group action
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Request sent to join this group!'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        'Join This Group',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
